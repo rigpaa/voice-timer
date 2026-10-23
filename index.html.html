@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>말하는 휘발성 타이머</title>
+    <!-- Tailwind CSS for UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+        body {
+            font-family: 'Pretendard', sans-serif;
+            touch-action: manipulation;
+        }
+        .mic-wave {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between p-6 select-none">
+
+    <!-- Header / Status Bar -->
+    <header class="text-center pt-4">
+        <div class="inline-flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-1.5 rounded-full text-xs font-semibold text-slate-400">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            단발성 휘발 타이머
+        </div>
+    </header>
+
+    <!-- Main Section: Timer & Visualizer -->
+    <main class="flex-1 flex flex-col items-center justify-center text-center my-8">
+        <!-- Main Time Display -->
+        <div id="timeDisplay" class="text-7xl sm:text-8xl font-black tracking-tight text-slate-100 font-mono my-4 transition-all duration-300">
+            00:00
+        </div>
+
+        <!-- Status Message Box -->
+        <div id="statusBox" class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 max-w-xs w-full backdrop-blur transition-all">
+            <p id="statusText" class="text-slate-300 text-sm font-medium">
+                버튼을 누르고 <br><span class="text-indigo-400 font-bold">"1분"</span> 또는 <span class="text-indigo-400 font-bold">"10분"</span>을 말하세요.
+            </p>
+        </div>
+
+        <!-- Recognized Text Badge -->
+        <div id="transcriptBadge" class="hidden mt-4 bg-indigo-950/60 border border-indigo-800/50 text-indigo-300 px-4 py-1.5 rounded-full text-xs font-medium">
+            인식: <span id="transcriptText" class="font-bold">""</span>
+        </div>
+
+        <!-- Quick Preset Chips -->
+        <div class="flex gap-2 mt-8">
+            <button onclick="setTimerDirect(60)" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs py-2 px-3.5 rounded-xl transition">
+                ⚡ 1분
+            </button>
+            <button onclick="setTimerDirect(600)" class="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs py-2 px-3.5 rounded-xl transition">
+                ⚡ 10분
+            </button>
+            <button onclick="stopTimer()" class="bg-red-950/40 hover:bg-red-900/50 border border-red-900/50 text-red-300 text-xs py-2 px-3.5 rounded-xl transition">
+                🛑 정지
+            </button>
+        </div>
+    </main>
+
+    <!-- Controls Section -->
+    <footer class="flex flex-col items-center gap-6 pb-6">
+        <!-- Mic Button -->
+        <button id="micBtn" onclick="toggleVoiceRecognition()" class="relative w-24 h-24 rounded-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-indigo-600/30">
+            <i id="micIcon" data-lucide="mic" class="w-10 h-10 text-white"></i>
+        </button>
+
+        <!-- Troubleshooting Guide Collapsible / Warning -->
+        <div id="protocolWarning" class="hidden bg-amber-950/40 border border-amber-800/50 text-amber-300 p-3.5 rounded-xl text-xs max-w-xs text-left">
+            <div class="font-bold mb-1 flex items-center gap-1.5">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-400"></i>
+                음성 인식 실행 오류 안내
+            </div>
+            <p class="leading-relaxed text-amber-200/80">
+                스마트폰 브라우저 보안 규정 상 <b>파일 직접 열기(file://)</b> 환경에서는 마이크 권한이 차단됩니다. 
+                아래 해결 방법을 참고해 주세요.
+            </p>
+        </div>
+
+        <button onclick="toggleHelpModal()" class="text-xs text-slate-500 underline underline-offset-4 hover:text-slate-400">
+            스마트폰 정상 작동 방법 안내
+        </button>
+    </footer>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-sm w-full space-y-4">
+            <h3 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <i data-lucide="help-circle" class="text-indigo-400"></i>
+                폰에서 사용하려면?
+            </h3>
+            <div class="text-xs text-slate-300 space-y-3 leading-relaxed">
+                <p>브라우저(Chrome/Safari) 보안 정책으로 인해 <b>HTTPS 연결</b>이 필요합니다.</p>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <p class="font-semibold text-indigo-300">💡 가장 쉬운 설치/실행 방법:</p>
+                    <ol class="list-decimal list-inside space-y-1 text-slate-400">
+                        <li>이 파일(`index.html`)을 <b>Netlify</b>나 <b>GitHub Pages</b> 등 무료 호스팅 서비스에 올려 HTTPS 주소로 접속.</li>
+                        <li>스마트폰 <b>Chrome 브라우저</b>에서 해당 주소 접속 후 마이크 권한 허용.</li>
+                        <li><b>'홈 화면에 추가'</b>를 누르면 설치형 앱처럼 바로 쓸 수 있습니다!</li>
+                    </ol>
+                </div>
+            </div>
+            <button onclick="toggleHelpModal()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 rounded-xl text-xs transition">
+                확인
+            </button>
+        </div>
+    </div>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        // State variables
+        let countdownTimer = null;
+        let remainingSeconds = 0;
+        let recognition = null;
+        let isListening = false;
+        let audioCtx = null;
+
+        // Initialize UI icons
+        lucide.createIcons();
+
+        // Check environment protocol on load
+        window.onload = function() {
+            if (window.location.protocol === 'file:') {
+                document.getElementById('protocolWarning').classList.remove('hidden');
+            }
+            initSpeechRecognition();
+        };
+
+        // Speech Recognition Setup
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                updateStatus("이 브라우저는 음성 인식을 지원하지 않습니다. Android Chrome을 권장합니다.", "error");
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ko-KR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = function() {
+                isListening = true;
+                updateMicUI(true);
+                updateStatus("듣고 있습니다... <br>'1분', '10분' 등을 말씀하세요.", "listening");
+            };
+
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                showTranscript(transcript);
+                parseVoiceCommand(transcript);
+            };
+
+            recognition.onerror = function(event) {
+                console.error("Speech Recognition Error:", event.error);
+                isListening = false;
+                updateMicUI(false);
+
+                if (event.error === 'not-allowed') {
+                    updateStatus("마이크 권한이 거부되었습니다.<br>주소창 전등/자물쇠 아이콘에서 허용해주세요.", "error");
+                } else if (event.error === 'no-speech') {
+                    updateStatus("음성이 감지되지 않았습니다.<br>다시 시도해 주세요.", "error");
+                } else {
+                    updateStatus(`인식 오류 (${event.error}).<br>다시 버튼을 눌러주세요.`, "error");
+                }
+            };
+
+            recognition.onend = function() {
+                isListening = false;
+                updateMicUI(false);
+            };
+        }
+
+        // Toggle Recording Status
+        function toggleVoiceRecognition() {
+            // AudioContext Unlock (Mobile Safari/Chrome User Gesture requirement)
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (!recognition) {
+                initSpeechRecognition();
+                if (!recognition) return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.warn("Recognition already started", e);
+                }
+            }
+        }
+
+        // Voice Command Parser
+        function parseVoiceCommand(text) {
+            let parsedSeconds = 0;
+
+            // Pattern Match for Minutes (e.g., "1분", "10분", "한분", "십분")
+            const minuteMatch = text.match(/(\d+)\s*분/);
+            if (minuteMatch) {
+                parsedSeconds += parseInt(minuteMatch[1]) * 60;
+            }
+
+            // Pattern Match for Seconds (e.g., "30초", "10초")
+            const secondMatch = text.match(/(\d+)\s*초/);
+            if (secondMatch) {
+                parsedSeconds += parseInt(secondMatch[1]);
+            }
+
+            // Korean Spoken Word Edge Cases
+            if (parsedSeconds === 0) {
+                if (text.includes("일분") || text.includes("1분")) parsedSeconds = 60;
+                else if (text.includes("십분") || text.includes("10분")) parsedSeconds = 600;
+                else if (text.includes("삼십초")) parsedSeconds = 30;
+            }
+
+            if (parsedSeconds > 0) {
+                startTimer(parsedSeconds);
+            } else {
+                updateStatus(`"${text}"<br>시간을 알아듣지 못했어요. (예: '1분', '10분')`, "error");
+            }
+        }
+
+        // Timer Execution Logic (Volatile Memory Timer)
+        function startTimer(seconds) {
+            stopTimer(); // Clear any existing instance
+
+            remainingSeconds = seconds;
+            updateDisplay(remainingSeconds);
+            updateStatus("휘발성 타이머가 작동 중입니다.", "active");
+
+            countdownTimer = setInterval(() => {
+                remainingSeconds--;
+                updateDisplay(remainingSeconds);
+
+                if (remainingSeconds <= 0) {
+                    stopTimer();
+                    updateStatus("🔔 시간 종료!", "finished");
+                    playAlarmSound();
+                }
+            }, 1000);
+        }
+
+        function setTimerDirect(seconds) {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            startTimer(seconds);
+        }
+
+        function stopTimer() {
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+            remainingSeconds = 0;
+            updateDisplay(0);
+        }
+
+        // Display Helpers
+        function updateDisplay(totalSec) {
+            const m = Math.floor(totalSec / 60).toString().padStart(2, '0');
+            const s = (totalSec % 60).toString().padStart(2, '0');
+            document.getElementById('timeDisplay').innerText = `${m}:${s}`;
+        }
+
+        function updateStatus(htmlMessage, state) {
+            const statusText = document.getElementById('statusText');
+            statusText.innerHTML = htmlMessage;
+
+            const timeDisplay = document.getElementById('timeDisplay');
+            if (state === 'listening') {
+                timeDisplay.className = "text-7xl sm:text-8xl font-black tracking-tight text-red-500 font-mono my-4 transition-all duration-300";
+            } else if (state === 'active') {
+                timeDisplay.className = "text-7xl sm:text-8xl font-black tracking-tight text-indigo-400 font-mono my-4 transition-all duration-300";
+            } else if (state === 'finished') {
+                timeDisplay.className = "text-7xl sm:text-8xl font-black tracking-tight text-emerald-400 font-mono my-4 transition-all duration-300 animate-bounce";
+            } else {
+                timeDisplay.className = "text-7xl sm:text-8xl font-black tracking-tight text-slate-100 font-mono my-4 transition-all duration-300";
+            }
+        }
+
+        function updateMicUI(listening) {
+            const micBtn = document.getElementById('micBtn');
+            const micIcon = document.getElementById('micIcon');
+
+            if (listening) {
+                micBtn.className = "relative w-24 h-24 rounded-full bg-red-600 hover:bg-red-500 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-red-600/50 mic-wave";
+                micIcon.setAttribute('data-lucide', 'mic-off');
+            } else {
+                micBtn.className = "relative w-24 h-24 rounded-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-indigo-600/30";
+                micIcon.setAttribute('data-lucide', 'mic');
+            }
+            lucide.createIcons();
+        }
+
+        function showTranscript(text) {
+            const badge = document.getElementById('transcriptBadge');
+            const textElem = document.getElementById('transcriptText');
+            textElem.innerText = `"${text}"`;
+            badge.classList.remove('hidden');
+        }
+
+        // Web Audio Synthesizer (Zero External Dependencies)
+        function playAlarmSound() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                // Play 3 high Beeps
+                const now = audioCtx.currentTime;
+                
+                for (let i = 0; i < 3; i++) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now + (i * 0.3)); // A5 Note
+
+                    gain.gain.setValueAtTime(0.8, now + (i * 0.3));
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + (i * 0.3) + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start(now + (i * 0.3));
+                    osc.stop(now + (i * 0.3) + 0.2);
+                }
+            } catch (e) {
+                console.error("Audio playback error:", e);
+            }
+        }
+
+        function toggleHelpModal() {
+            const modal = document.getElementById('helpModal');
+            modal.classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
